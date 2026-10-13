@@ -48,6 +48,7 @@
         <module>modules/gce-ext</module>
         <module>modules/zookeeper-ip-finder-ext</module>
         <module>modules/topology-validator-ext</module>
+        <module>modules/metrics-plugin</module>
         <module>modules/hibernate-ext</module>
         <module>modules/geospatial-ext</module>
         <module>modules/aop-ext</module>
