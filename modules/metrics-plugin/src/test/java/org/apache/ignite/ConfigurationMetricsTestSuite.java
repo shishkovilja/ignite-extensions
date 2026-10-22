@@ -20,7 +20,7 @@ package org.apache.ignite;
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 
-/** Tests for the {@code configuration-metrics-plugin} module. */
+/** Tests for the {@code metrics-plugin} module. */
 @RunWith(Suite.class)
 @Suite.SuiteClasses({
     ConfigurationMetricsTest.class

@@ -39,10 +39,11 @@ import org.jetbrains.annotations.Nullable;
  * {@code SYS.CONFIGURATION} system view as a tree of registries under {@value #CONFIGURATION_METRICS}, for example
  * {@code configuration.DataStorageConfiguration.DefaultDataRegionConfiguration.MaxSize}.
  * <p>
- * Values are read once, when the node is started. Sensitive values are skipped if
- * {@link org.apache.ignite.IgniteSystemProperties#IGNITE_TO_STRING_INCLUDE_SENSITIVE} is {@code false}. If the
- * configuration can't be read, an error is logged and the node starts without the metrics. Only
- * {@link OutOfMemoryError} fails the node start. See the module README for the details.
+ * Properties are read once, when the node is started, and the metric values are fixed at that moment. Properties of
+ * primitive types are typed metrics. Other properties, including boxed primitive types, are string metrics with the
+ * value of the system view, {@code null} if not set. Sensitive properties ({@code SensitiveProperty} and
+ * {@code char[]}) are never exposed. If the configuration can't be read, an error is logged and the node starts
+ * without the metrics. Only {@link OutOfMemoryError} fails the node start. See the module README for the details.
  */
 public class ConfigurationMetricsPluginProvider implements PluginProvider<PluginConfiguration> {
     /** Name of the root metric registry. */

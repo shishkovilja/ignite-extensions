@@ -18,68 +18,53 @@
 package org.apache.ignite;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
-import java.util.regex.Pattern;
+import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.GridKernalContext;
-import org.apache.ignite.internal.IgniteKernal;
+import org.apache.ignite.internal.managers.systemview.IgniteConfigurationIterable;
 import org.apache.ignite.internal.processors.metric.GridMetricManager;
+import org.apache.ignite.internal.util.typedef.T3;
 import org.apache.ignite.internal.util.typedef.internal.S;
+import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.metric.MetricRegistry;
-import org.apache.ignite.spi.systemview.view.ConfigurationView;
-import org.apache.ignite.spi.systemview.view.SystemView;
 
-import static java.util.regex.Pattern.CASE_INSENSITIVE;
 import static org.apache.ignite.internal.processors.metric.impl.MetricUtils.metricName;
 
 /**
  * Registers the rows of the {@code SYS.CONFIGURATION} system view as metrics: the row {@code A.B.C} is the {@code C}
- * metric of the {@code configuration.A.B} registry. Values are read once, on registration.
+ * metric of the {@code configuration.A.B} registry. Properties are read once, on registration.
  */
 class ConfigurationMetricsRegistrar {
-    /** Sensitive property name: ends with one of the listed words, case-insensitive. */
-    private static final Pattern SENSITIVE_NAME = Pattern.compile(".*(AccountKey|Credential|Credentials|" +
-        "CredentialsProvider|Identity|KeyPair|Login|Passwd|Password|Pwd|Secret|SecretKey|Token|User|UserObject)",
-        CASE_INSENSITIVE);
-
-    /** Array element index in a view row name: {@code Property[i]}. */
-    private static final Pattern ARRAY_IDX = Pattern.compile("\\[\\d+]$");
-
-    /** Skip sensitive properties, if they are excluded from {@code toString()}, see {@link S#includeSensitive()}. */
-    private final boolean excludeSensitiveData = !S.includeSensitive();
-
-    /** Configuration system view. */
-    private final SystemView<ConfigurationView> cfgView;
-
     /** Metric manager. */
     private final GridMetricManager mmgr;
+
+    /** Ignite configuration. */
+    private final IgniteConfiguration cfg;
 
     /** Registered metric registries by names. */
     private final Map<String, MetricRegistry> registries = new HashMap<>();
 
     /** @param ctx Kernal context. */
     ConfigurationMetricsRegistrar(GridKernalContext ctx) {
-        cfgView = ctx.systemView().view(IgniteKernal.CFG_VIEW);
         mmgr = ctx.metric();
+        cfg = ctx.config();
     }
 
     /** Registers the metrics from the configuration system view. */
     void init() {
-        for (ConfigurationView row : cfgView)
-            registerMetricFromView(row);
+        Iterator<T3<String, Object, Class<?>>> iter = new IgniteConfigurationIterable(cfg).rawIterator();
+
+        while (iter.hasNext())
+            registerMetricFromView(iter.next());
     }
 
-    /**
-     * Registers the view row as a metric, creating the registries on its path.
-     *
-     * @param row Configuration view row.
-     */
-    private void registerMetricFromView(ConfigurationView row) {
-        // Like fields marked with `@GridToStringInclude(sensitive = true)` in `toString()`.
-        if (excludeSensitiveData && isSensitive(row.name()))
-            return;
+    /** */
+    private void registerMetricFromView(T3<String, Object, Class<?>> rawProp) {
+        String name = rawProp.get1();
 
         // "Property[i]" -> "Property_i": square brackets are not ideal in metric names.
-        String rowName = row.name().replaceAll("\\[(\\d+)]", "_$1");
+        String rowName = name.replaceAll("\\[(\\d+)]", "_$1");
 
         String[] splitName = rowName.split("\\.");
 
@@ -97,9 +82,45 @@ class ConfigurationMetricsRegistrar {
             mreg = registry(curMregName);
         }
 
-        String val = row.value();
+        registerMetricByType(mreg, propName, rawProp.get2(), rawProp.get3());
+    }
 
-        mreg.register(propName, () -> val, String.class, "Configuration property " + row.name());
+    /**
+     * Registers a typed metric for a property of a primitive type, a string metric otherwise. Boxed types are string
+     * metrics, so a not set value is {@code null}, as in the system view. The metric value is computed once.
+     *
+     * @param mreg Metric registry.
+     * @param name Metric name.
+     * @param val Property value, boxed for a primitive type.
+     * @param cls Property type: the return type of the getter.
+     */
+    private static void registerMetricByType(MetricRegistry mreg, String name, Object val, Class<?> cls) {
+        if (cls == boolean.class) {
+            boolean boolVal = (Boolean)val;
+
+            mreg.register(name, () -> boolVal, null);
+        }
+        else if (cls == int.class || cls == short.class || cls == byte.class) {
+            int intVal = ((Number)val).intValue();
+
+            mreg.register(name, () -> intVal, null);
+        }
+        else if (cls == long.class) {
+            long longVal = (Long)val;
+
+            mreg.register(name, () -> longVal, null);
+        }
+        else if (cls == double.class || cls == float.class) {
+            // By the decimal representation: 0.1f is 0.1, not 0.10000000149011612.
+            double dblVal = Double.parseDouble(val.toString());
+
+            mreg.register(name, () -> dblVal, null);
+        }
+        else {
+            String strVal = val != null && val.getClass().isArray() ? S.arrayToString(val) : U.toStringSafe(val);
+
+            mreg.register(name, () -> strVal, String.class, null);
+        }
     }
 
     /**
@@ -108,23 +129,6 @@ class ConfigurationMetricsRegistrar {
      */
     private MetricRegistry registry(String name) {
         return registries.computeIfAbsent(name, mmgr::registry);
-    }
-
-    /**
-     * Checks every part of the path, so a nested object of a sensitive property is sensitive as a whole:
-     * {@code Secret.Value} and {@code SecretKey[0].Value} are sensitive.
-     *
-     * @param path Property path, as in the view: {@code A.B[0].C}.
-     * @return {@code True} if the property is sensitive.
-     */
-    static boolean isSensitive(String path) {
-        for (String name : path.split("\\.")) {
-            // "Secret[0]" -> "Secret".
-            if (SENSITIVE_NAME.matcher(ARRAY_IDX.matcher(name).replaceAll("")).matches())
-                return true;
-        }
-
-        return false;
     }
 
     /** Removes all the registered metric registries. */

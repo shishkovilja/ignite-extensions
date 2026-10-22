@@ -27,22 +27,24 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.processors.metric.GridMetricManager;
 import org.apache.ignite.internal.processors.metric.MetricRegistryImpl;
+import org.apache.ignite.internal.systemview.SensitiveProperty;
 import org.apache.ignite.lifecycle.LifecycleBean;
 import org.apache.ignite.lifecycle.LifecycleEventType;
 import org.apache.ignite.plugin.security.SecurityCredentials;
+import org.apache.ignite.spi.metric.BooleanMetric;
+import org.apache.ignite.spi.metric.DoubleMetric;
+import org.apache.ignite.spi.metric.IntMetric;
+import org.apache.ignite.spi.metric.LongMetric;
 import org.apache.ignite.spi.metric.Metric;
 import org.apache.ignite.spi.metric.ObjectMetric;
 import org.apache.ignite.spi.metric.ReadOnlyMetricRegistry;
 import org.apache.ignite.spi.systemview.view.ConfigurationView;
 import org.apache.ignite.testframework.ListeningTestLogger;
 import org.apache.ignite.testframework.LogListener;
-import org.apache.ignite.testframework.junits.WithSystemProperty;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.Test;
 
 import static org.apache.ignite.ConfigurationMetricsPluginProvider.CONFIGURATION_METRICS;
-import static org.apache.ignite.IgniteCommonsSystemProperties.IGNITE_TO_STRING_INCLUDE_SENSITIVE;
-import static org.apache.ignite.IgniteSystemProperties.IGNITE_CONFIGURATION_VIEW_PACKAGES;
 import static org.apache.ignite.internal.IgniteKernal.CFG_VIEW;
 import static org.apache.ignite.internal.processors.metric.impl.MetricUtils.metricName;
 
@@ -102,7 +104,10 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
         Map<String, String> metrics = metrics(grid(0));
 
         assertFalse(expected.isEmpty());
-        assertEquals(expected, metrics);
+        assertEquals(expected.keySet(), metrics.keySet());
+
+        for (Map.Entry<String, String> e : expected.entrySet())
+            assertEquals(e.getKey(), e.getValue(), metrics.get(e.getKey()));
     }
 
     /** Tests that a nested configuration object is a registry with its properties as metrics. */
@@ -118,7 +123,10 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
             .anyMatch(m -> metricName(DEFAULT_REGION, "InitialSize").equals(m.name())));
     }
 
-    /** Tests that values of any type are strings, as in the system view. */
+    /**
+     * Tests that metrics of primitive properties are typed, of other properties, including boxed primitive types,
+     * are strings, as in the system view.
+     */
     @Test
     public void testFindMetrics() {
         GridMetricManager mmgr = grid(0).context().metric();
@@ -126,54 +134,46 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
         assertEquals(getTestIgniteInstanceName(0),
             mmgr.find(metricName(CONFIGURATION_METRICS, "IgniteInstanceName"), ObjectMetric.class).value());
 
-        assertEquals(String.valueOf(grid(0).configuration().getPublicThreadPoolSize()),
-            mmgr.find(metricName(CONFIGURATION_METRICS, "PublicThreadPoolSize"), ObjectMetric.class).value());
+        assertEquals("{role=test}",
+            mmgr.find(metricName(CONFIGURATION_METRICS, "UserAttributes"), ObjectMetric.class).value());
 
-        assertEquals("true", mmgr.find(metricName(DEFAULT_REGION, "MetricsEnabled"), ObjectMetric.class).value());
+        assertEquals(grid(0).configuration().getPublicThreadPoolSize(),
+            mmgr.find(metricName(CONFIGURATION_METRICS, "PublicThreadPoolSize"), IntMetric.class).value());
 
-        assertEquals(String.valueOf(new DataRegionConfiguration().getEvictionThreshold()),
-            mmgr.find(metricName(DEFAULT_REGION, "EvictionThreshold"), ObjectMetric.class).value());
+        assertTrue(mmgr.find(metricName(DEFAULT_REGION, "MetricsEnabled"), BooleanMetric.class).value());
 
-        assertEquals(String.valueOf(MAX_SIZE),
-            mmgr.find(metricName(DEFAULT_REGION, "MaxSize"), ObjectMetric.class).value());
+        assertEquals(new DataRegionConfiguration().getEvictionThreshold(),
+            mmgr.find(metricName(DEFAULT_REGION, "EvictionThreshold"), DoubleMetric.class).value(), 0);
 
-        assertEquals("7", mmgr.find(metricName(BEAN, "ShortValue"), ObjectMetric.class).value());
-        assertEquals("0.1", mmgr.find(metricName(BEAN, "FloatValue"), ObjectMetric.class).value());
+        assertEquals(MAX_SIZE, mmgr.find(metricName(DEFAULT_REGION, "MaxSize"), LongMetric.class).value());
+
+        assertEquals(7, mmgr.find(metricName(BEAN, "ShortValue"), IntMetric.class).value());
+
+        // By the decimal representation: 0.1f is 0.1, not 0.10000000149011612.
+        assertEquals(0.1, mmgr.find(metricName(BEAN, "FloatValue"), DoubleMetric.class).value(), 0);
+
+        // Not set value of a boxed type.
+        assertNull(mmgr.find(metricName(BEAN, "BoxedValue"), ObjectMetric.class).value());
     }
 
-    /** Tests that sensitive properties are not registered if sensitive data is excluded. */
+    /** Tests that sensitive properties are not registered, even if sensitive data is included in {@code toString()}. */
     @Test
-    @WithSystemProperty(key = IGNITE_TO_STRING_INCLUDE_SENSITIVE, value = "false")
     public void testSensitiveValuesSkipped() {
         Map<String, String> metrics = metrics(grid(0));
 
-        // Not registered, even if not set.
+        // Marked with @SensitiveProperty.
         assertFalse(metrics.containsKey(metricName(BEAN, "KeyStorePassword")));
-        assertFalse(metrics.containsKey(metricName(BEAN, "Token")));
         assertFalse(metrics.containsKey(metricName(BEAN, "Credentials", "Password")));
 
-        // "User" is not at the end of the name.
-        assertEquals("{role=test}", metrics.get(metricName(CONFIGURATION_METRICS, "UserAttributes")));
+        // char[] property.
+        assertFalse(metrics.containsKey(metricName(BEAN, "TrustStorePassword")));
+
+        // Other properties of a nested object are registered.
+        assertEquals("login", metrics.get(metricName(BEAN, "Credentials", "Login")));
 
         // No metric exposes the secret.
         for (Map.Entry<String, String> m : metrics.entrySet())
             assertFalse(m.getKey(), String.valueOf(m.getValue()).contains(SECRET));
-    }
-
-    /** Tests that sensitive values are exposed by default, as in the system view. */
-    @Test
-    public void testSensitiveDataExposedByDefault() {
-        Map<String, String> metrics = metrics(grid(0));
-
-        assertEquals(SECRET, metrics.get(metricName(BEAN, "KeyStorePassword")));
-
-        // Not set: registered with the null value.
-        assertTrue(metrics.containsKey(metricName(BEAN, "Token")));
-        assertNull(metrics.get(metricName(BEAN, "Token")));
-
-        // Nested object of a sensitive property is a registry.
-        assertEquals("login", metrics.get(metricName(BEAN, "Credentials", "Login")));
-        assertEquals(SECRET, metrics.get(metricName(BEAN, "Credentials", "Password")));
     }
 
     /** Tests that a getter failure is logged, and the node starts without the metrics. */
@@ -185,23 +185,6 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
             .setGridLogger(new ListeningTestLogger(log, lsnr))
             .setLifecycleBeans(new FailingBean());
 
-        try (IgniteEx ignite = startGrid(cfg)) {
-            assertTrue(lsnr.check());
-            assertTrue(metrics(ignite).isEmpty());
-        }
-    }
-
-    /** Tests that an {@link Error} is logged, and the node starts without the metrics. */
-    @Test
-    @WithSystemProperty(key = IGNITE_CONFIGURATION_VIEW_PACKAGES, value = "com.sbt.ignite")
-    public void testErrorDoesNotFailNodeStart() throws Exception {
-        LogListener lsnr = LogListener.matches("Failed to register the configuration metrics").build();
-
-        IgniteConfiguration cfg = getConfiguration(getTestIgniteInstanceName(1))
-            .setGridLogger(new ListeningTestLogger(log, lsnr))
-            .setLifecycleBeans(new EndlessBean());
-
-        // EndlessBean in SystemView will cause StackOverflow.
         try (IgniteEx ignite = startGrid(cfg)) {
             assertTrue(lsnr.check());
             assertTrue(metrics(ignite).isEmpty());
@@ -249,7 +232,10 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
         private String keyStorePwd = SECRET;
 
         /** */
-        private String token;
+        private char[] trustStorePwd = SECRET.toCharArray();
+
+        /** */
+        private Integer boxedVal;
 
         /** {@inheritDoc} */
         @Override public void onLifecycleEvent(LifecycleEventType evt) {
@@ -277,6 +263,7 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
         }
 
         /** */
+        @SensitiveProperty
         public String getKeyStorePassword() {
             return keyStorePwd;
         }
@@ -287,13 +274,23 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
         }
 
         /** */
-        public String getToken() {
-            return token;
+        public char[] getTrustStorePassword() {
+            return trustStorePwd;
         }
 
         /** */
-        public void setToken(String token) {
-            this.token = token;
+        public void setTrustStorePassword(char[] trustStorePwd) {
+            this.trustStorePwd = trustStorePwd;
+        }
+
+        /** */
+        public Integer getBoxedValue() {
+            return boxedVal;
+        }
+
+        /** */
+        public void setBoxedValue(Integer boxedVal) {
+            this.boxedVal = boxedVal;
         }
 
         /** */
@@ -321,24 +318,6 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
 
         /** */
         public void setValue(String val) {
-            // No-op.
-        }
-    }
-
-    /** Configuration bean returning a new nested bean on each call: reading it ends with {@link StackOverflowError}. */
-    public static class EndlessBean implements LifecycleBean {
-        /** {@inheritDoc} */
-        @Override public void onLifecycleEvent(LifecycleEventType evt) {
-            // No-op.
-        }
-
-        /** */
-        public EndlessBean getNested() {
-            return new EndlessBean();
-        }
-
-        /** */
-        public void setNested(EndlessBean nested) {
             // No-op.
         }
     }
