@@ -56,7 +56,7 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
     /** Credentials: a configuration object in a sensitive property. */
     public static final SecurityCredentials SECURITY_CREDENTIALS = new SecurityCredentials("login", SECRET);
 
-    /** Maximum size of the default data region. */
+    /** */
     private static final long MAX_SIZE = 128L * 1024 * 1024;
 
     /** */
@@ -126,10 +126,7 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
             .anyMatch(m -> metricName(DEFAULT_REGION, "InitialSize").equals(m.name())));
     }
 
-    /**
-     * Tests that metrics of primitive properties are typed, of other properties, including boxed primitive types,
-     * are strings, as in the system view.
-     */
+    /** Tests that metrics of primitive properties are typed, of others (boxed types too) are strings. */
     @Test
     public void testFindMetrics() {
         GridMetricManager mmgr = grid(0).context().metric();
@@ -152,7 +149,7 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
 
         assertEquals(7, mmgr.find(metricName(BEAN, "ShortValue"), IntMetric.class).value());
 
-        // By the decimal representation: 0.1f is 0.1, not 0.10000000149011612.
+        // 0.1f -> 0.1, not 0.10000000149011612.
         assertEquals(0.1, mmgr.find(metricName(BEAN, "FloatValue"), DoubleMetric.class).value(), 0);
 
         // Not set value of a boxed type.
@@ -174,7 +171,6 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
         // Other properties of a nested object are registered.
         assertEquals("login", metrics.get(metricName(BEAN, "Credentials", "Login")));
 
-        // No metric exposes the secret.
         for (Map.Entry<String, String> m : metrics.entrySet())
             assertFalse(m.getKey(), String.valueOf(m.getValue()).contains(SECRET));
     }

@@ -55,7 +55,7 @@ class ConfigurationMetricsRegistrar {
         cfg = ctx.config();
     }
 
-    /** Registers the metrics from the configuration system view. */
+    /** */
     void init() {
         Iterator<T3<String, Object, Class<?>>> iter = new IgniteConfigurationIterable(cfg).rawIterator();
 
@@ -65,10 +65,9 @@ class ConfigurationMetricsRegistrar {
 
     /** */
     private void registerMetricFromView(T3<String, Object, Class<?>> rawProp) {
-        // "Property[i]" -> "Property_i": square brackets are not ideal in metric names.
+        // "Property[i]" -> "Property_i".
         String rowName = IDX_PATTERN.matcher(rawProp.get1()).replaceAll("_$1");
 
-        // The last part is the property, the preceding parts are the registry.
         int dotIdx = rowName.lastIndexOf('.');
 
         MetricRegistry mreg = registry(dotIdx < 0
@@ -78,13 +77,7 @@ class ConfigurationMetricsRegistrar {
         registerMetricByType(mreg, rowName.substring(dotIdx + 1), rawProp.get2(), rawProp.get3());
     }
 
-    /**
-     * Registers a typed metric for a property of a primitive type, a string metric otherwise. Boxed types are string
-     * metrics, so a not set value is {@code null}, as in the system view. The metric value is computed once.
-     *
-     * @param val Property value, boxed for a primitive type.
-     * @param cls Property type: the return type of the getter.
-     */
+    /** Registers a typed metric for a primitive type, a string metric otherwise, including boxed types. */
     private static void registerMetricByType(MetricRegistry mreg, String name, Object val, Class<?> cls) {
         if (cls == boolean.class) {
             boolean boolVal = (Boolean)val;
@@ -102,7 +95,7 @@ class ConfigurationMetricsRegistrar {
             mreg.register(name, () -> longVal, null);
         }
         else if (cls == double.class || cls == float.class) {
-            // By the decimal representation: 0.1f is 0.1, not 0.10000000149011612.
+            // 0.1f -> 0.1, not 0.10000000149011612.
             double dblVal = Double.parseDouble(val.toString());
 
             mreg.register(name, () -> dblVal, null);

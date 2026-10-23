@@ -19,7 +19,7 @@ package org.apache.ignite;
 
 import org.apache.ignite.plugin.PluginConfiguration;
 
-/** Configuration of {@link MetricsPluginProvider}: enables the plugin features. */
+/** Configuration of {@link MetricsPluginProvider}. */
 public class MetricsPluginConfiguration implements PluginConfiguration {
     /** */
     private boolean cfgMetricsEnabled;
