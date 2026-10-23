@@ -21,7 +21,7 @@ import org.apache.ignite.plugin.PluginConfiguration;
 
 /** Configuration of {@link MetricsPluginProvider}: enables the plugin features. */
 public class MetricsPluginConfiguration implements PluginConfiguration {
-    /** Whether the node configuration is exported as metrics. */
+    /** */
     private boolean cfgMetricsEnabled;
 
     /** @return {@code True} if the node configuration is exported as metrics. */

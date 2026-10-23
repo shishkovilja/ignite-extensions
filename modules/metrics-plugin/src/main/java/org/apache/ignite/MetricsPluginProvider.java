@@ -46,10 +46,10 @@ public class MetricsPluginProvider implements PluginProvider<MetricsPluginConfig
     /** Root registry of the configuration metrics. */
     public static final String CONFIGURATION_METRICS = "configuration";
 
-    /** Plugin configuration. */
+    /** */
     private final MetricsPluginConfiguration cfg;
 
-    /** Ignite kernel context. */
+    /** */
     private GridKernalContext ctx;
 
     /** Configuration metrics registrar, {@code null} if the metrics are not registered. */

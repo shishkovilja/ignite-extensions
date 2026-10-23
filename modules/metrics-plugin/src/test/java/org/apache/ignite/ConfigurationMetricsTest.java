@@ -59,11 +59,11 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
     /** Maximum size of the default data region. */
     private static final long MAX_SIZE = 128L * 1024 * 1024;
 
-    /** Registry of the default data region. */
+    /** */
     private static final String DEFAULT_REGION = metricName(CONFIGURATION_METRICS, "DataStorageConfiguration",
         "DefaultDataRegionConfiguration");
 
-    /** Registry of the test bean. */
+    /** */
     private static final String BEAN = metricName(CONFIGURATION_METRICS, "LifecycleBeans_0");
 
     /** {@inheritDoc} */
@@ -194,7 +194,7 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
         }
     }
 
-    /** Tests that the metrics are removed on the node stop. */
+    /** */
     @Test
     public void testMetricsRemovedOnStop() throws Exception {
         IgniteEx ignite = startGrid(1);
@@ -206,10 +206,7 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
         assertTrue(metrics(ignite).isEmpty());
     }
 
-    /**
-     * @param ignite Ignite.
-     * @return Configuration metrics, keyed by the full metric name.
-     */
+    /** @return Configuration metrics, keyed by the full metric name. */
     private static Map<String, String> metrics(IgniteEx ignite) {
         Map<String, String> res = new TreeMap<>();
 

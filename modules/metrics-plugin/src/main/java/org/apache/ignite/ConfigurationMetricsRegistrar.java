@@ -37,19 +37,19 @@ import static org.apache.ignite.internal.processors.metric.impl.MetricUtils.metr
  * metric of the {@code configuration.A.B} registry. Properties are read once, on registration.
  */
 class ConfigurationMetricsRegistrar {
-    /** Pattern of an index in a property name: {@code [i]}. */
+    /** */
     private static final Pattern IDX_PATTERN = Pattern.compile("\\[(\\d+)]");
 
-    /** Metric manager. */
+    /** */
     private final GridMetricManager mmgr;
 
-    /** Ignite configuration. */
+    /** */
     private final IgniteConfiguration cfg;
 
-    /** Registered metric registries by names. */
+    /** */
     private final Map<String, MetricRegistry> registries = new HashMap<>();
 
-    /** @param ctx Kernal context. */
+    /** */
     ConfigurationMetricsRegistrar(GridKernalContext ctx) {
         mmgr = ctx.metric();
         cfg = ctx.config();
@@ -82,8 +82,6 @@ class ConfigurationMetricsRegistrar {
      * Registers a typed metric for a property of a primitive type, a string metric otherwise. Boxed types are string
      * metrics, so a not set value is {@code null}, as in the system view. The metric value is computed once.
      *
-     * @param mreg Metric registry.
-     * @param name Metric name.
      * @param val Property value, boxed for a primitive type.
      * @param cls Property type: the return type of the getter.
      */
@@ -116,15 +114,12 @@ class ConfigurationMetricsRegistrar {
         }
     }
 
-    /**
-     * @param name Metric registry name.
-     * @return Metric registry, created if absent.
-     */
+    /** @return Metric registry, created if absent. */
     private MetricRegistry registry(String name) {
         return registries.computeIfAbsent(name, mmgr::registry);
     }
 
-    /** Removes all the registered metric registries. */
+    /** */
     void unregister() {
         for (String regName : registries.keySet())
             mmgr.remove(regName, false);
