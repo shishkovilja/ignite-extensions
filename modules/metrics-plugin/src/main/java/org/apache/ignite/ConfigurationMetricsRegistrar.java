@@ -20,6 +20,7 @@ package org.apache.ignite;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.managers.systemview.IgniteConfigurationIterable;
@@ -36,6 +37,9 @@ import static org.apache.ignite.internal.processors.metric.impl.MetricUtils.metr
  * metric of the {@code configuration.A.B} registry. Properties are read once, on registration.
  */
 class ConfigurationMetricsRegistrar {
+    /** Pattern of an index in a property name: {@code [i]}. */
+    private static final Pattern IDX_PATTERN = Pattern.compile("\\[(\\d+)]");
+
     /** Metric manager. */
     private final GridMetricManager mmgr;
 
@@ -61,28 +65,17 @@ class ConfigurationMetricsRegistrar {
 
     /** */
     private void registerMetricFromView(T3<String, Object, Class<?>> rawProp) {
-        String name = rawProp.get1();
-
         // "Property[i]" -> "Property_i": square brackets are not ideal in metric names.
-        String rowName = name.replaceAll("\\[(\\d+)]", "_$1");
+        String rowName = IDX_PATTERN.matcher(rawProp.get1()).replaceAll("_$1");
 
-        String[] splitName = rowName.split("\\.");
+        // The last part is the property, the preceding parts are the registry.
+        int dotIdx = rowName.lastIndexOf('.');
 
-        String curMregName = MetricsPluginProvider.CONFIGURATION_METRICS;
+        MetricRegistry mreg = registry(dotIdx < 0
+            ? MetricsPluginProvider.CONFIGURATION_METRICS
+            : metricName(MetricsPluginProvider.CONFIGURATION_METRICS, rowName.substring(0, dotIdx)));
 
-        // The last part is the property, the preceding parts are the registries.
-        int propIdx = splitName.length - 1;
-        String propName = splitName[propIdx];
-
-        MetricRegistry mreg = registry(curMregName);
-
-        for (int i = 0; i < propIdx; i++) {
-            curMregName = metricName(curMregName, splitName[i]);
-
-            mreg = registry(curMregName);
-        }
-
-        registerMetricByType(mreg, propName, rawProp.get2(), rawProp.get3());
+        registerMetricByType(mreg, rowName.substring(dotIdx + 1), rawProp.get2(), rawProp.get3());
     }
 
     /**
