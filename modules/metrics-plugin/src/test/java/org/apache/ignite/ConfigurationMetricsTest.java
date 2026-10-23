@@ -44,11 +44,11 @@ import org.apache.ignite.testframework.LogListener;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.Test;
 
-import static org.apache.ignite.ConfigurationMetricsPluginProvider.CONFIGURATION_METRICS;
+import static org.apache.ignite.MetricsPluginProvider.CONFIGURATION_METRICS;
 import static org.apache.ignite.internal.IgniteKernal.CFG_VIEW;
 import static org.apache.ignite.internal.processors.metric.impl.MetricUtils.metricName;
 
-/** Tests for {@link ConfigurationMetricsPluginProvider}. */
+/** Tests for the configuration metrics of {@link MetricsPluginProvider}. */
 public class ConfigurationMetricsTest extends GridCommonAbstractTest {
     /** Value of the sensitive properties. */
     private static final String SECRET = "top-secret";
@@ -69,6 +69,9 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
         return super.getConfiguration(igniteInstanceName)
+            .setPluginProviders(new MetricsPluginProvider(
+                new MetricsPluginConfiguration()
+                    .setConfigMetricsEnabled(true)))
             .setUserAttributes(Collections.singletonMap("role", "test"))
             .setDataStorageConfiguration(new DataStorageConfiguration()
                 .setDefaultDataRegionConfiguration(new DataRegionConfiguration()

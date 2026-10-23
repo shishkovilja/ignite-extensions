@@ -27,27 +27,27 @@ import org.apache.ignite.plugin.CachePluginContext;
 import org.apache.ignite.plugin.CachePluginProvider;
 import org.apache.ignite.plugin.ExtensionRegistry;
 import org.apache.ignite.plugin.IgnitePlugin;
-import org.apache.ignite.plugin.PluginConfiguration;
 import org.apache.ignite.plugin.PluginContext;
 import org.apache.ignite.plugin.PluginProvider;
 import org.apache.ignite.spi.metric.MetricExporterSpi;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Plugin that exposes the node configuration ({@link org.apache.ignite.configuration.IgniteConfiguration}) as metrics,
- * exported by the configured {@link MetricExporterSpi} implementations. The metrics repeat the
- * {@code SYS.CONFIGURATION} system view as a tree of registries under {@value #CONFIGURATION_METRICS}, for example
- * {@code configuration.DataStorageConfiguration.DefaultDataRegionConfiguration.MaxSize}.
+ * Plugin that adds extra metrics to the node. They are exported by {@link MetricExporterSpi} as any other metric.
+ * Each feature is enabled in {@link MetricsPluginConfiguration}, all are disabled by default.
  * <p>
- * Properties are read once, when the node is started, and the metric values are fixed at that moment. Properties of
- * primitive types are typed metrics. Other properties, including boxed primitive types, are string metrics with the
- * value of the system view, {@code null} if not set. Sensitive properties ({@code SensitiveProperty} and
- * {@code char[]}) are never exposed. If the configuration can't be read, an error is logged and the node starts
- * without the metrics. Only {@link OutOfMemoryError} fails the node start. See the module README for the details.
+ * Features:
+ * <ul>
+ *     <li>Configuration metrics: the node configuration as the {@value #CONFIGURATION_METRICS} registry tree.</li>
+ * </ul>
+ * See the module README for the details.
  */
-public class ConfigurationMetricsPluginProvider implements PluginProvider<PluginConfiguration> {
-    /** Name of the root metric registry. */
+public class MetricsPluginProvider implements PluginProvider<MetricsPluginConfiguration> {
+    /** Root registry of the configuration metrics. */
     public static final String CONFIGURATION_METRICS = "configuration";
+
+    /** Plugin configuration. */
+    private final MetricsPluginConfiguration cfg;
 
     /** Ignite kernel context. */
     private GridKernalContext ctx;
@@ -55,9 +55,14 @@ public class ConfigurationMetricsPluginProvider implements PluginProvider<Plugin
     /** Configuration metrics registrar, {@code null} if the metrics are not registered. */
     private ConfigurationMetricsRegistrar registrar;
 
+    /** @param cfg Plugin configuration. */
+    public MetricsPluginProvider(MetricsPluginConfiguration cfg) {
+        this.cfg = cfg;
+    }
+
     /** {@inheritDoc} */
     @Override public String name() {
-        return "Configuration Metrics";
+        return "MetricsPlugin";
     }
 
     /** {@inheritDoc} */
@@ -109,21 +114,28 @@ public class ConfigurationMetricsPluginProvider implements PluginProvider<Plugin
 
     /** {@inheritDoc} */
     @Override public void onIgniteStart() {
-        registrar = new ConfigurationMetricsRegistrar(ctx);
+        initConfigMetricsIfNecessary();
+    }
 
-        try {
-            registrar.init();
-        }
-        catch (Throwable e) {
-            if (e instanceof OutOfMemoryError)
-                throw e;
+    /** Registers the configuration metrics, if enabled. On failure, logs the error and continues without them. */
+    private void initConfigMetricsIfNecessary() {
+        if (cfg.isConfigMetricsEnabled()) {
+            registrar = new ConfigurationMetricsRegistrar(ctx);
 
-            registrar.unregister();
+            try {
+                registrar.init();
+            }
+            catch (Throwable e) {
+                if (e instanceof OutOfMemoryError)
+                    throw e;
 
-            registrar = null;
+                registrar.unregister();
 
-            U.error(ctx.log(getClass()), "Failed to register the configuration metrics, " +
-                "the configuration will not be exposed as metrics.", e);
+                registrar = null;
+
+                U.error(ctx.log(getClass()), "Failed to register the configuration metrics, " +
+                    "the configuration will not be exposed as metrics.", e);
+            }
         }
     }
 

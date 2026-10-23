@@ -68,7 +68,7 @@ class ConfigurationMetricsRegistrar {
 
         String[] splitName = rowName.split("\\.");
 
-        String curMregName = ConfigurationMetricsPluginProvider.CONFIGURATION_METRICS;
+        String curMregName = MetricsPluginProvider.CONFIGURATION_METRICS;
 
         // The last part is the property, the preceding parts are the registries.
         int propIdx = splitName.length - 1;

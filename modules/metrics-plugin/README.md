@@ -1,103 +1,103 @@
-# Модуль метрик конфигурации Apache Ignite
+# Плагин метрик Apache Ignite
 
-Плагин Ignite, который предоставляет конфигурацию узла (`IgniteConfiguration`) в виде метрик. Они экспортируются
-реализациями `MetricExporterSpi` (JMX, OpenCensus, лог, SQL-представление и т.д.) так же, как и любые другие метрики узла.
+Плагин добавляет на узел Ignite дополнительные метрики. Они экспортируются так же, как встроенные: через JMX,
+OpenCensus, SQL-представление, `control.sh --metric` и т.д.
 
-## Использование
+Каждая возможность плагина включается отдельно, по умолчанию все выключены:
 
-Добавьте JAR-файл модуля в classpath каждого узла, например, в каталог `libs` дистрибутива Ignite.
-Плагин загружается автоматически через `ServiceLoader`, изменять конфигурацию не нужно.
+| Возможность                                                            | Свойство               |
+|------------------------------------------------------------------------|------------------------|
+| [Экспорт конфигурации узла в метрики](#экспорт-конфигурации-в-метрики) | `configMetricsEnabled` |
 
-Ignite загружает плагины из classpath только если свойство `IgniteConfiguration#pluginProviders` не задано. В противном
-случае добавьте `ConfigurationMetricsPluginProvider` в список провайдеров плагинов узла:
+## Установка
+
+1. Добавьте JAR-файл `ignite-metrics-plugin` в каталог `libs` каждого узла.
+2. Добавьте плагин в `pluginProviders` и включите нужные возможности.
+
+Java:
 
 ```java
-new IgniteConfiguration()
-    .setPluginProviders(new ConfigurationMetricsPluginProvider(), new SomeOtherPluginProvider());
+IgniteConfiguration cfg = new IgniteConfiguration()
+    .setPluginProviders(new MetricsPluginProvider(
+        new MetricsPluginConfiguration()
+            .setConfigMetricsEnabled(true)));
 ```
 
-или через Spring XML:
+Spring XML:
 
 ```xml
-
 <bean class="org.apache.ignite.configuration.IgniteConfiguration">
-  <property name="pluginProviders">
-    <list>
-      <bean class="org.apache.ignite.ConfigurationMetricsPluginProvider"/>
-      <bean class="com.example.SomeOtherPluginProvider"/>
-    </list>
-  </property>
+    <property name="pluginProviders">
+        <list>
+            <bean class="org.apache.ignite.MetricsPluginProvider">
+                <constructor-arg>
+                    <bean class="org.apache.ignite.MetricsPluginConfiguration">
+                        <property name="configMetricsEnabled" value="true"/>
+                    </bean>
+                </constructor-arg>
+            </bean>
+        </list>
+    </property>
 </bean>
 ```
 
-Чтобы экспортировать только часть метрик конфигурации, задайте фильтр экспорта используемого metric exporter. Фильтр
-применяется ко всем реестрам метрик узла, а не только к реестрам конфигурации, поэтому остальные реестры нужно
-пропустить явно. Например, так экспортируются все метрики узла, а из метрик конфигурации — только
-`DataStorageConfiguration`:
+Чтобы метрики были видны снаружи узла, настройте
+[экспортёр метрик](https://ignite.apache.org/docs/ignite2/latest/monitoring-metrics/new-metrics-system).
+
+## Экспорт конфигурации в метрики
+
+Показывает конфигурацию узла в системе мониторинга: например, чтобы сравнить настройки узлов или получить оповещение о
+неверном параметре. Данные те же, что в системном представлении `SYS.CONFIGURATION`.
+
+### Имена метрик
+
+Имя корневого реестра: `configuration`
+
+Вложенный объект конфигурации — отдельный реестр, его свойства — метрики этого реестра:
+
+| Часть конфигурации       | Пример метрики                                                                  |
+|--------------------------|---------------------------------------------------------------------------------|
+| Конфигурация узла        | `configuration.IgniteInstanceName`                                              |
+| Вложенный объект         | `configuration.DataStorageConfiguration.DefaultDataRegionConfiguration.MaxSize` |
+| Элемент массива объектов | `configuration.CacheConfiguration_0.Name`                                       |
+
+В JMX это MBean `name=configuration` и MBean группы `group=configuration`, например
+`group=configuration,name="DataStorageConfiguration.DefaultDataRegionConfiguration"`.
+
+### Что экспортируется
+
+* Все свойства, которые можно задать в конфигурации узла.
+* Объекты конфигурации из пакета `org.apache.ignite` раскрываются в реестры. Для своих классов перечислите их пакеты
+  через запятую в системном свойстве `IGNITE_CONFIGURATION_VIEW_PACKAGES`. Остальные объекты, коллекции и массивы
+  простых значений экспортируются строкой.
+* Пароли и другие конфиденциальные свойства не экспортируются никогда.
+
+### Типы метрик
+
+| Тип свойства             | Тип метрики |
+|--------------------------|-------------|
+| `boolean`                | boolean     |
+| `int`, `short`, `byte`   | integer     |
+| `long`                   | long        |
+| `double`, `float`        | double      |
+| Любой другой             | string      |
+
+Свойства, которые могут быть не заданы (например, `ClientMode` типа `Boolean`), экспортируются строкой, значение
+`null` — «не задано». Экспортёры, не поддерживающие строки (например, OpenCensus), такие метрики пропускают.
+
+Значения считываются один раз, при запуске узла.
+
+### Экспорт части конфигурации
+
+Используйте фильтр экспортёра. Фильтр действует на все метрики узла, поэтому остальные реестры нужно разрешить явно.
+Пример: все метрики узла, а из конфигурации — только `DataStorageConfiguration`:
 
 ```java
-JmxMetricExporterSpi jmxSpi = new JmxMetricExporterSpi();
-
 jmxSpi.setExportFilter(new RegexpMetricFilter(
     "(?!configuration(\\.|$)).*|configuration\\.DataStorageConfiguration(\\..*)?"));
 ```
 
-## Имена метрик
+### Ошибки
 
-Метрики повторяют строки системного представления `SYS.CONFIGURATION`: строка представления `A.B.C` становится метрикой
-`C` в registry `configuration.A.B`. Например, максимальный размер региона данных по умолчанию — это метрика
-`configuration.DataStorageConfiguration.DefaultDataRegionConfiguration.MaxSize`.
-
-| Часть конфигурации                          | Предоставляется как                                                                          |
-|---------------------------------------------|----------------------------------------------------------------------------------------------|
-| `IgniteConfiguration`                       | реестр `configuration`                                                                       |
-| Вложенный объект конфигурации               | реестр с именем по своему пути: `configuration.DataStorageConfiguration`                     |
-| Объект конфигурации в массиве               | реестр с индексом элемента: `configuration.CacheConfiguration_1`                             |
-| Любое другое свойство                       | метрика реестра владельца: `configuration.IgniteInstanceName`                                |
-
-Индекс элемента отделяется подчёркиванием: тот же самый элемент системное представление называет `CacheConfiguration[1]`.
-
-При использовании `JmxMetricExporterSpi` корневой реестр — это MBean `name=configuration`, а вложенные реестры — MBeans
-группы `group=configuration`, например `group=configuration,name="DataStorageConfiguration.DefaultDataRegionConfiguration"`.
-
-Системное представление определяет, что именно экспонируется:
-
-* Свойство — это пара публичного сеттера `setXxx` и публичного геттера `getXxx` или `isXxx`.
-* Объект конфигурации — это объект класса (не перечисления), имя которого начинается с `org.apache.ignite.` или с одного
-  из префиксов, перечисленных через запятую в системном свойстве `IGNITE_CONFIGURATION_VIEW_PACKAGES`. Объект
-  конфигурации без свойств не создаёт реестр.
-* Массив объектов раскрывается поэлементно: каждый элемент, который является объектом конфигурации, становится реестром.
-  Элементы `null`, объекты других классов и циклические ссылки пропускаются. Если раскрыть нечего, массив становится
-  одной метрикой, как и массивы примитивов, коллекции и `Map`.
-* Свойство, значение которого — циклическая ссылка на объект выше по пути, становится одной метрикой.
-* Свойства, помеченные `@SensitiveProperty`, и свойства типа `char[]` не экспортируются никогда, независимо от значения
-  `IGNITE_TO_STRING_INCLUDE_SENSITIVE`.
-
-## Значения метрик
-
-Тип метрики зависит от типа свойства:
-
-| Тип свойства                                             | Метрика                                                         |
-|----------------------------------------------------------|-----------------------------------------------------------------|
-| `boolean`                                                | `BooleanMetric`                                                 |
-| `int`, `short`, `byte`                                   | `IntMetric`                                                     |
-| `long`                                                   | `LongMetric`                                                    |
-| `double`, `float`                                        | `DoubleMetric`, `float` по десятичной записи: `0.1f` — `0.1`    |
-| Любой другой, включая обёртки (`Integer`, `Long` и т.д.) | `ObjectMetric<String>` со значением из системного представления |
-
-Например, `MaxSize` — это `LongMetric` со значением `134217728`.
-
-Строковое значение — это `toString()` значения свойства, для массива — его поэлементное представление. Если свойство не
-задано, значение равно `null`. Свойства типов-обёрток экспортируются строками, чтобы сохранить `null`: для многих из них
-он означает «значение по умолчанию вычисляется», и его нельзя заменить на `0` или `false`. Экспортёры, которые принимают
-только числовые и логические метрики (например, `OpenCensusMetricExporterSpi`), строковые метрики пропускают, поэтому
-такие свойства, например `FailureDetectionTimeout` или `ClientMode`, через них не экспортируются.
-
-Геттеры вызываются один раз, при завершении запуска узла, и значения всех метрик фиксируются в этот момент. Если
-изменяемый объект (коллекция, `Map`, массив) изменили после запуска узла, метрика это не покажет.
-
-## Ошибки
-
-Если конфигурацию не удалось прочитать, например геттер бросил исключение, ошибка записывается в лог, уже
-зарегистрированные реестры удаляются, и узел запускается без метрик конфигурации. Запуск узла прерывается только
-при `OutOfMemoryError`.
+Если конфигурацию не удалось прочитать, в лог пишется ошибка `Failed to register the configuration metrics`, и узел
+запускается без этих метрик.
