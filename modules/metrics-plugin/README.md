@@ -13,7 +13,7 @@ Java:
 IgniteConfiguration cfg = new IgniteConfiguration()
     .setPluginProviders(new MetricsPluginProvider(
         new MetricsPluginConfiguration()
-            .setConfigMetricsEnabled(true)));
+            .setConfigurationMetricsEnabled(true)));
 ```
 
 Spring XML:
