@@ -53,10 +53,12 @@ class ConfigurationMetricsRegistrar {
     ConfigurationMetricsRegistrar(GridKernalContext ctx) {
         mmgr = ctx.metric();
         cfg = ctx.config();
+
+        init();
     }
 
     /** */
-    void init() {
+    private void init() {
         Iterator<T3<String, Object, Class<?>>> iter = new IgniteConfigurationIterable(cfg).rawIterator();
 
         while (iter.hasNext())
@@ -110,13 +112,5 @@ class ConfigurationMetricsRegistrar {
     /** @return Metric registry, created if absent. */
     private MetricRegistry registry(String name) {
         return registries.computeIfAbsent(name, mmgr::registry);
-    }
-
-    /** */
-    void unregister() {
-        for (String regName : registries.keySet())
-            mmgr.remove(regName, false);
-
-        registries.clear();
     }
 }

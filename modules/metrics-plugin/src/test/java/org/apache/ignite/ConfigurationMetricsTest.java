@@ -39,8 +39,6 @@ import org.apache.ignite.spi.metric.Metric;
 import org.apache.ignite.spi.metric.ObjectMetric;
 import org.apache.ignite.spi.metric.ReadOnlyMetricRegistry;
 import org.apache.ignite.spi.systemview.view.ConfigurationView;
-import org.apache.ignite.testframework.ListeningTestLogger;
-import org.apache.ignite.testframework.LogListener;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.Test;
 
@@ -175,33 +173,6 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
             assertFalse(m.getKey(), String.valueOf(m.getValue()).contains(SECRET));
     }
 
-    /** Tests that a getter failure is logged, and the node starts without the metrics. */
-    @Test
-    public void testRegistrationFailure() throws Exception {
-        LogListener lsnr = LogListener.matches("Failed to register the configuration metrics").build();
-
-        IgniteConfiguration cfg = getConfiguration(getTestIgniteInstanceName(1))
-            .setGridLogger(new ListeningTestLogger(log, lsnr))
-            .setLifecycleBeans(new FailingBean());
-
-        try (IgniteEx ignite = startGrid(cfg)) {
-            assertTrue(lsnr.check());
-            assertTrue(metrics(ignite).isEmpty());
-        }
-    }
-
-    /** */
-    @Test
-    public void testMetricsRemovedOnStop() throws Exception {
-        IgniteEx ignite = startGrid(1);
-
-        assertFalse(metrics(ignite).isEmpty());
-
-        stopGrid(1);
-
-        assertTrue(metrics(ignite).isEmpty());
-    }
-
     /** @return Configuration metrics, keyed by the full metric name. */
     private static Map<String, String> metrics(IgniteEx ignite) {
         Map<String, String> res = new TreeMap<>();
@@ -296,24 +267,6 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
 
         /** */
         public void setCredentials(SecurityCredentials ignore) {
-            // No-op.
-        }
-    }
-
-    /** Configuration bean with a property that can't be read. */
-    public static class FailingBean implements LifecycleBean {
-        /** {@inheritDoc} */
-        @Override public void onLifecycleEvent(LifecycleEventType evt) {
-            // No-op.
-        }
-
-        /** */
-        public String getValue() {
-            throw new IllegalStateException("Test failure.");
-        }
-
-        /** */
-        public void setValue(String val) {
             // No-op.
         }
     }

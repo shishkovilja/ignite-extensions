@@ -22,7 +22,6 @@ import java.util.UUID;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.IgniteEx;
-import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.plugin.CachePluginContext;
 import org.apache.ignite.plugin.CachePluginProvider;
 import org.apache.ignite.plugin.ExtensionRegistry;
@@ -101,10 +100,6 @@ public class MetricsPluginProvider implements PluginProvider<MetricsPluginConfig
 
     /** {@inheritDoc} */
     @Override public void stop(boolean cancel) {
-        if (registrar != null)
-            registrar.unregister();
-
-        // Don't retain the stopped node, the provider may outlive it in the user configuration.
         registrar = null;
         ctx = null;
     }
@@ -116,24 +111,8 @@ public class MetricsPluginProvider implements PluginProvider<MetricsPluginConfig
 
     /** Registers the configuration metrics, if enabled. */
     private void initConfigMetricsIfNecessary() {
-        if (cfg.isConfigMetricsEnabled()) {
+        if (cfg.isConfigMetricsEnabled())
             registrar = new ConfigurationMetricsRegistrar(ctx);
-
-            try {
-                registrar.init();
-            }
-            catch (Throwable e) {
-                if (e instanceof OutOfMemoryError)
-                    throw e;
-
-                registrar.unregister();
-
-                registrar = null;
-
-                U.error(ctx.log(getClass()), "Failed to register the configuration metrics, " +
-                    "the configuration will not be exposed as metrics.", e);
-            }
-        }
     }
 
     /** {@inheritDoc} */
