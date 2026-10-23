@@ -69,7 +69,7 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
         return super.getConfiguration(igniteInstanceName)
             .setPluginProviders(new MetricsPluginProvider(
                 new MetricsPluginConfiguration()
-                    .setConfigMetricsEnabled(true)))
+                    .setConfiguratonMetricsEnabled(true)))
             .setUserAttributes(Collections.singletonMap("role", "test"))
             .setDataStorageConfiguration(new DataStorageConfiguration()
                 .setDefaultDataRegionConfiguration(new DataRegionConfiguration()

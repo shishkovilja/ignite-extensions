@@ -17,11 +17,10 @@
 
 package org.apache.ignite;
 
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
-import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.managers.systemview.IgniteConfigurationIterable;
 import org.apache.ignite.internal.processors.metric.GridMetricManager;
@@ -41,42 +40,35 @@ class ConfigurationMetricsRegistrar {
     private static final Pattern IDX_PATTERN = Pattern.compile("\\[(\\d+)]");
 
     /** */
-    private final GridMetricManager mmgr;
-
-    /** */
-    private final IgniteConfiguration cfg;
-
-    /** */
-    private final Map<String, MetricRegistry> registries = new HashMap<>();
-
-    /** */
-    ConfigurationMetricsRegistrar(GridKernalContext ctx) {
-        mmgr = ctx.metric();
-        cfg = ctx.config();
-
-        init();
+    private ConfigurationMetricsRegistrar() {
+        // No-op.
     }
 
-    /** */
-    private void init() {
-        Iterator<T3<String, Object, Class<?>>> iter = new IgniteConfigurationIterable(cfg).rawIterator();
+    /** @param ctx Kernal context. */
+    static void register(GridKernalContext ctx) {
+        GridMetricManager mmgr = ctx.metric();
 
-        while (iter.hasNext())
-            registerMetricFromView(iter.next());
-    }
+        Set<String> regNames = new HashSet<>();
 
-    /** */
-    private void registerMetricFromView(T3<String, Object, Class<?>> rawProp) {
-        // "Property[i]" -> "Property_i".
-        String rowName = IDX_PATTERN.matcher(rawProp.get1()).replaceAll("_$1");
+        Iterator<T3<String, Object, Class<?>>> iter = new IgniteConfigurationIterable(ctx.config()).rawIterator();
 
-        int dotIdx = rowName.lastIndexOf('.');
+        while (iter.hasNext()) {
+            T3<String, Object, Class<?>> rawProp = iter.next();
 
-        MetricRegistry mreg = registry(dotIdx < 0
-            ? MetricsPluginProvider.CONFIGURATION_METRICS
-            : metricName(MetricsPluginProvider.CONFIGURATION_METRICS, rowName.substring(0, dotIdx)));
+            // "Property[i]" -> "Property_i".
+            String rowName = IDX_PATTERN.matcher(rawProp.get1()).replaceAll("_$1");
 
-        registerMetricByType(mreg, rowName.substring(dotIdx + 1), rawProp.get2(), rawProp.get3());
+            int dotIdx = rowName.lastIndexOf('.');
+
+            String regName = dotIdx < 0
+                ? MetricsPluginProvider.CONFIGURATION_METRICS
+                : metricName(MetricsPluginProvider.CONFIGURATION_METRICS, rowName.substring(0, dotIdx));
+
+            regNames.add(regName);
+
+            registerMetricByType(mmgr.registry(regName), rowName.substring(dotIdx + 1), rawProp.get2(),
+                rawProp.get3());
+        }
     }
 
     /** Registers a typed metric for a primitive type, a string metric otherwise, including boxed types. */
@@ -107,10 +99,5 @@ class ConfigurationMetricsRegistrar {
 
             mreg.register(name, () -> strVal, String.class, null);
         }
-    }
-
-    /** @return Metric registry, created if absent. */
-    private MetricRegistry registry(String name) {
-        return registries.computeIfAbsent(name, mmgr::registry);
     }
 }

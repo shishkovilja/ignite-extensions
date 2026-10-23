@@ -25,7 +25,7 @@ public class MetricsPluginConfiguration implements PluginConfiguration {
     private boolean cfgMetricsEnabled;
 
     /** @return {@code True} if the node configuration is exported as metrics. */
-    public boolean isConfigMetricsEnabled() {
+    public boolean isConfigurationMetricsEnabled() {
         return cfgMetricsEnabled;
     }
 
@@ -33,7 +33,7 @@ public class MetricsPluginConfiguration implements PluginConfiguration {
      * @param cfgMetricsEnabled {@code True} to export the node configuration as metrics.
      * @return {@code this} for chaining.
      */
-    public MetricsPluginConfiguration setConfigMetricsEnabled(boolean cfgMetricsEnabled) {
+    public MetricsPluginConfiguration setConfiguratonMetricsEnabled(boolean cfgMetricsEnabled) {
         this.cfgMetricsEnabled = cfgMetricsEnabled;
 
         return this;

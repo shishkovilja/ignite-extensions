@@ -32,11 +32,7 @@ import org.apache.ignite.spi.metric.MetricExporterSpi;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Plugin that adds extra metrics to the node, exported by {@link MetricExporterSpi} as any other metric. Features are
- * enabled in {@link MetricsPluginConfiguration}, all are disabled by default:
- * <ul>
- *     <li>Configuration metrics: the node configuration as the {@value #CONFIGURATION_METRICS} registry tree.</li>
- * </ul>
+ * Plugin that adds extra metrics to the node, exported by {@link MetricExporterSpi} as any other metric.
  */
 public class MetricsPluginProvider implements PluginProvider<MetricsPluginConfiguration> {
     /** Root registry of the configuration metrics. */
@@ -47,9 +43,6 @@ public class MetricsPluginProvider implements PluginProvider<MetricsPluginConfig
 
     /** */
     private GridKernalContext ctx;
-
-    /** {@code null} if the configuration metrics are not registered. */
-    private ConfigurationMetricsRegistrar registrar;
 
     /** @param cfg Plugin configuration. */
     public MetricsPluginProvider(MetricsPluginConfiguration cfg) {
@@ -100,19 +93,13 @@ public class MetricsPluginProvider implements PluginProvider<MetricsPluginConfig
 
     /** {@inheritDoc} */
     @Override public void stop(boolean cancel) {
-        registrar = null;
         ctx = null;
     }
 
     /** {@inheritDoc} */
     @Override public void onIgniteStart() {
-        initConfigMetricsIfNecessary();
-    }
-
-    /** Registers the configuration metrics, if enabled. */
-    private void initConfigMetricsIfNecessary() {
-        if (cfg.isConfigMetricsEnabled())
-            registrar = new ConfigurationMetricsRegistrar(ctx);
+        if (cfg.isConfigurationMetricsEnabled())
+            ConfigurationMetricsRegistrar.register(ctx);
     }
 
     /** {@inheritDoc} */
