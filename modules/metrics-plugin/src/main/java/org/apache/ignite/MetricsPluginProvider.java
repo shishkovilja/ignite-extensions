@@ -22,6 +22,7 @@ import java.util.UUID;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.IgniteEx;
+import org.apache.ignite.internal.util.typedef.internal.A;
 import org.apache.ignite.plugin.CachePluginContext;
 import org.apache.ignite.plugin.CachePluginProvider;
 import org.apache.ignite.plugin.ExtensionRegistry;
@@ -46,6 +47,8 @@ public class MetricsPluginProvider implements PluginProvider<MetricsPluginConfig
 
     /** @param cfg Plugin configuration. */
     public MetricsPluginProvider(MetricsPluginConfiguration cfg) {
+        A.notNull(cfg, "configuration");
+
         this.cfg = cfg;
     }
 
