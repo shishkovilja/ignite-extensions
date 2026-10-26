@@ -102,7 +102,7 @@ public class MetricsPluginProvider implements PluginProvider<MetricsPluginConfig
     /** {@inheritDoc} */
     @Override public void onIgniteStart() {
         if (cfg.isConfigurationMetricsEnabled())
-            ConfigurationMetricsRegistrar.register(ctx);
+            ConfigurationMetrics.register(ctx);
     }
 
     /** {@inheritDoc} */

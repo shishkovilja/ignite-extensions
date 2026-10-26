@@ -33,12 +33,12 @@ import static org.apache.ignite.internal.processors.metric.impl.MetricUtils.metr
  * Registers the rows of the {@code SYS.CONFIGURATION} system view as metrics: the row {@code A.B.C} is the {@code C}
  * metric of the {@code configuration.A.B} registry. Properties are read once, on registration.
  */
-class ConfigurationMetricsRegistrar {
+class ConfigurationMetrics {
     /** */
     private static final Pattern IDX_PATTERN = Pattern.compile("\\[(\\d+)]");
 
     /** */
-    private ConfigurationMetricsRegistrar() {
+    private ConfigurationMetrics() {
         // No-op.
     }
 
