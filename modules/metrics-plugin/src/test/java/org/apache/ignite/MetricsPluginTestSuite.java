@@ -25,6 +25,6 @@ import org.junit.runners.Suite;
 @Suite.SuiteClasses({
     ConfigurationMetricsTest.class
 })
-public class ConfigurationMetricsTestSuite {
+public class MetricsPluginTestSuite {
     // No-op.
 }
