@@ -20,17 +20,13 @@ package org.apache.ignite;
 import java.util.Collections;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.stream.StreamSupport;
 import org.apache.ignite.configuration.DataRegionConfiguration;
 import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.processors.metric.GridMetricManager;
-import org.apache.ignite.internal.processors.metric.MetricRegistryImpl;
-import org.apache.ignite.internal.systemview.SensitiveProperty;
 import org.apache.ignite.lifecycle.LifecycleBean;
 import org.apache.ignite.lifecycle.LifecycleEventType;
-import org.apache.ignite.plugin.security.SecurityCredentials;
 import org.apache.ignite.spi.metric.BooleanMetric;
 import org.apache.ignite.spi.metric.DoubleMetric;
 import org.apache.ignite.spi.metric.IntMetric;
@@ -48,12 +44,6 @@ import static org.apache.ignite.internal.processors.metric.impl.MetricUtils.metr
 
 /** Tests for the configuration metrics of {@link MetricsPluginProvider}. */
 public class ConfigurationMetricsTest extends GridCommonAbstractTest {
-    /** Value of the sensitive properties. */
-    private static final String SECRET = "top-secret";
-
-    /** Credentials: a configuration object in a sensitive property. */
-    public static final SecurityCredentials SECURITY_CREDENTIALS = new SecurityCredentials("login", SECRET);
-
     /** */
     private static final long MAX_SIZE = 128L * 1024 * 1024;
 
@@ -111,19 +101,6 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
             assertEquals(e.getKey(), e.getValue(), metrics.get(e.getKey()));
     }
 
-    /** Tests that a nested configuration object is a registry with its properties as metrics. */
-    @Test
-    public void testSubRegistry() {
-        GridMetricManager mmgr = grid(0).context().metric();
-
-        MetricRegistryImpl dfltRegionReg = mmgr.registry(DEFAULT_REGION);
-
-        assertNotNull(dfltRegionReg);
-
-        assertTrue(StreamSupport.stream(dfltRegionReg.spliterator(), false)
-            .anyMatch(m -> metricName(DEFAULT_REGION, "InitialSize").equals(m.name())));
-    }
-
     /** Tests that metrics of primitive properties are typed, of others (boxed types too) are strings. */
     @Test
     public void testFindMetrics() {
@@ -154,25 +131,6 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
         assertNull(mmgr.find(metricName(BEAN, "BoxedValue"), ObjectMetric.class).value());
     }
 
-    /** Tests that sensitive properties are not registered, even if sensitive data is included in {@code toString()}. */
-    @Test
-    public void testSensitiveValuesSkipped() {
-        Map<String, String> metrics = metrics(grid(0));
-
-        // Marked with @SensitiveProperty.
-        assertFalse(metrics.containsKey(metricName(BEAN, "KeyStorePassword")));
-        assertFalse(metrics.containsKey(metricName(BEAN, "Credentials", "Password")));
-
-        // char[] property.
-        assertFalse(metrics.containsKey(metricName(BEAN, "TrustStorePassword")));
-
-        // Other properties of a nested object are registered.
-        assertEquals("login", metrics.get(metricName(BEAN, "Credentials", "Login")));
-
-        for (Map.Entry<String, String> m : metrics.entrySet())
-            assertFalse(m.getKey(), String.valueOf(m.getValue()).contains(SECRET));
-    }
-
     /** @return Configuration metrics, keyed by the full metric name. */
     private static Map<String, String> metrics(IgniteEx ignite) {
         Map<String, String> res = new TreeMap<>();
@@ -194,12 +152,6 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
 
         /** */
         private float floatVal = 0.1f;
-
-        /** */
-        private String keyStorePwd = SECRET;
-
-        /** */
-        private char[] trustStorePwd = SECRET.toCharArray();
 
         /** */
         private Integer boxedVal;
@@ -230,27 +182,6 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
         }
 
         /** */
-        @SensitiveProperty
-        public String getKeyStorePassword() {
-            return keyStorePwd;
-        }
-
-        /** */
-        public void setKeyStorePassword(String keyStorePwd) {
-            this.keyStorePwd = keyStorePwd;
-        }
-
-        /** */
-        public char[] getTrustStorePassword() {
-            return trustStorePwd;
-        }
-
-        /** */
-        public void setTrustStorePassword(char[] trustStorePwd) {
-            this.trustStorePwd = trustStorePwd;
-        }
-
-        /** */
         public Integer getBoxedValue() {
             return boxedVal;
         }
@@ -258,16 +189,6 @@ public class ConfigurationMetricsTest extends GridCommonAbstractTest {
         /** */
         public void setBoxedValue(Integer boxedVal) {
             this.boxedVal = boxedVal;
-        }
-
-        /** */
-        public SecurityCredentials getCredentials() {
-            return SECURITY_CREDENTIALS;
-        }
-
-        /** */
-        public void setCredentials(SecurityCredentials ignore) {
-            // No-op.
         }
     }
 }

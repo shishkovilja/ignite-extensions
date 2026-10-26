@@ -17,9 +17,7 @@
 
 package org.apache.ignite;
 
-import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Set;
 import java.util.regex.Pattern;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.managers.systemview.IgniteConfigurationIterable;
@@ -48,8 +46,6 @@ class ConfigurationMetricsRegistrar {
     static void register(GridKernalContext ctx) {
         GridMetricManager mmgr = ctx.metric();
 
-        Set<String> regNames = new HashSet<>();
-
         Iterator<T3<String, Object, Class<?>>> iter = new IgniteConfigurationIterable(ctx.config()).rawIterator();
 
         while (iter.hasNext()) {
@@ -63,8 +59,6 @@ class ConfigurationMetricsRegistrar {
             String regName = dotIdx < 0
                 ? MetricsPluginProvider.CONFIGURATION_METRICS
                 : metricName(MetricsPluginProvider.CONFIGURATION_METRICS, rowName.substring(0, dotIdx));
-
-            regNames.add(regName);
 
             registerMetricByType(mmgr.registry(regName), rowName.substring(dotIdx + 1), rawProp.get2(),
                 rawProp.get3());
